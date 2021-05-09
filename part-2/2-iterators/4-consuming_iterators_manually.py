@@ -21,7 +21,7 @@ def cast_row(data_types1, data_row):
     ]
 
 
-cars = []
+# cars = []
 
 # with open('cars.csv') as file:
 #     row_index = 0
