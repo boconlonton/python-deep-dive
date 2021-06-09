@@ -13,10 +13,12 @@ Methods:
     - parse_confirmation_number
 """
 from datetime import datetime
-from my_datetime import TimeZone, DateTime
-from decimal import Decimal, ConversionSyntax, getcontext
+from decimal import Decimal, ConversionSyntax
 from collections import namedtuple
+from itertools import count
 from numbers import Number
+
+from my_datetime import TimeZone, DateTime
 
 
 TRANSACTION_TYPE = {
@@ -54,7 +56,7 @@ class Balance:
 
 class Transaction:
 
-    global_trans_id = 0
+    global_trans_id = count(100)
     ConfirmNumber = namedtuple('ConferenceNumber', 'ts_code accnt created_at ts_id')
     transaction_list = []
 
@@ -125,8 +127,7 @@ class Transaction:
         if value and value >= 0:
             self._transaction_id = value
         else:
-            self._transaction_id = Transaction.global_trans_id
-            Transaction.global_trans_id += 1
+            self._transaction_id = next(Transaction.global_trans_id)
 
     @property
     def confirmation_number(self):
@@ -150,6 +151,7 @@ class Transaction:
 class BankAccount:
     transaction_id = 0
     account_list = []
+    interest_rate = 0.5
 
     def __init__(self,
                  account_number,
@@ -165,7 +167,6 @@ class BankAccount:
         self.last_name = last_name
         self.timezone = preferred_timezone
         self._balances = Balance(balances)
-        self.interest = None
 
         BankAccount.account_list.append(self)
 
@@ -186,10 +187,8 @@ class BankAccount:
 
     @first_name.setter
     def first_name(self, value):
-        if isinstance(value, str) and value:
-            self._first_name = value
-        else:
-            raise TypeError('First name must be a non-empty string')
+        # self._first_name = BankAccount.validate_name(value, 'first_name')
+        self.validate_name(value, '_first_name', 'First name')
 
     @property
     def last_name(self):
@@ -197,10 +196,8 @@ class BankAccount:
 
     @last_name.setter
     def last_name(self, value):
-        if isinstance(value, str) and value:
-            self._last_name = value
-        else:
-            raise TypeError('Last name must be a non-empty string')
+        # self._last_name = BankAccount.validate_name(value, 'last_name')
+        self.validate_name(value, '_last_name', 'Last name')
 
     @property
     def timezone(self):
@@ -225,11 +222,13 @@ class BankAccount:
             raise TypeError('Value must be of Balance type')
 
     def deposit(self, amount):
+        amount = BankAccount.validate_real_number(amount, 0.01)
         transaction_code = 'd'
         self.balance.data += amount
         return Transaction(self, transaction_code, amount)
 
     def withdraw(self, amount):
+        amount = BankAccount.validate_real_number(amount)
         transaction_code = 'w'
         try:
             self.balance = self.balance - amount
@@ -240,12 +239,28 @@ class BankAccount:
             return Transaction(self, transaction_code, amount)
 
     def deposit_interest(self):
-        if self.interest:
+        if self.interest_rate:
             if self.balance.data > 0:
-                deposit_interest = (Decimal(self.interest) * self.balance.data) / 100
+                deposit_interest = (Decimal(self.interest_rate) * self.balance.data) / 100
                 return self.deposit(deposit_interest)
         else:
             raise ValueError('Please interest value')
+
+    def validate_name(self, value, attr_name, field):
+        if value is None or len(str(value).strip()) == 0:
+            raise ValueError(f'{field} cannot be empty')
+        # return str(value).strip()
+        setattr(self, attr_name, value)
+
+    @staticmethod
+    def validate_real_number(value, min_value=None):
+        if not isinstance(value, Number):
+            raise ValueError('value must be a real number.')
+
+        if min_value is not None and value < min_value:
+            raise ValueError(f'value must be at least {min_value}.')
+
+        return Decimal(value)
 
 
 # Usage
@@ -255,5 +270,16 @@ acc = BankAccount(
     first_name='Tommy',
     last_name='Truong',
     preferred_timezone=tz1,
-    balances=0
+    balances=100
 )
+print(acc.balance.data)
+ts1 = acc.deposit(150.02)
+print(acc.balance.data)
+ts2 = acc.withdraw(0.02)
+print(acc.balance.data)
+BankAccount.interest_rate = 1.0
+print(BankAccount.interest_rate)
+ts3 = acc.deposit_interest()
+print(acc.balance.data)
+ts4 = acc.withdraw(1000)
+print(ts4.confirmation_number)
